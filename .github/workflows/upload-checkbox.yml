@@ -1,0 +1,688 @@
+# ============================================================
+# 🚀 GITHUB UPLOADER
+# ============================================================
+#
+# Workflow para enviar um arquivo ou pasta de uploads/
+# para qualquer repositório do GitHub.
+#
+# Funcionalidades:
+#
+# ✅ Upload de arquivo
+# ✅ Upload de pasta
+# ✅ Repositório existente
+# ✅ Criar repositório automaticamente
+# ✅ Repositório público ou privado
+# ✅ Escolha da branch
+# ✅ Subpasta de destino
+# ✅ Mensagem personalizada de commit
+# ✅ PAT através do Secret MY_GITHUB_TOKEN
+#
+# ============================================================
+
+name: 🚀 GitHub Uploader
+
+
+# ============================================================
+# EVENTOS
+# ============================================================
+
+on:
+
+  # ----------------------------------------------------------
+  # EXECUÇÃO MANUAL
+  # ----------------------------------------------------------
+
+  workflow_dispatch:
+
+    inputs:
+
+      # ======================================================
+      # REPOSITÓRIO
+      # ======================================================
+
+      repository:
+
+        description: "📦 Nome do repositório de destino. Exemplo: MEU-PROJETO"
+
+        required: true
+
+        type: string
+
+
+      # ======================================================
+      # ORIGEM
+      # ======================================================
+
+      source:
+
+        description: "📁 Arquivo ou pasta dentro de uploads/. Exemplo: uploads/projeto.zip"
+
+        required: true
+
+        type: string
+
+
+      # ======================================================
+      # CRIAR REPOSITÓRIO
+      # ======================================================
+
+      create:
+
+        description: "🆕 Marque para criar o repositório automaticamente se ele não existir."
+
+        required: true
+
+        type: boolean
+
+        default: false
+
+
+      # ======================================================
+      # PRIVACIDADE
+      # ======================================================
+
+      private:
+
+        description: "🔒 Marque para criar o repositório como PRIVADO. Desmarcado = PÚBLICO."
+
+        required: true
+
+        type: boolean
+
+        default: false
+
+
+      # ======================================================
+      # BRANCH
+      # ======================================================
+
+      branch:
+
+        description: "🌿 Branch de destino. Exemplo: main"
+
+        required: true
+
+        type: string
+
+        default: "main"
+
+
+      # ======================================================
+      # SUBPASTA
+      # ======================================================
+
+      remote_dir:
+
+        description: "📂 Subpasta no repositório. Opcional — deixe vazio para usar a raiz."
+
+        required: false
+
+        type: string
+
+        default: ""
+
+
+      # ======================================================
+      # COMMIT
+      # ======================================================
+
+      commit:
+
+        description: "📝 Mensagem que aparecerá no commit."
+
+        required: true
+
+        type: string
+
+        default: "Upload automático"
+
+
+
+# ============================================================
+# JOBS
+# ============================================================
+
+jobs:
+
+
+  # ==========================================================
+  # JOB DE UPLOAD
+  # ==========================================================
+
+  upload:
+
+    name: 📦 Upload para GitHub
+
+
+    # ========================================================
+    # SISTEMA
+    # ========================================================
+
+    runs-on: ubuntu-latest
+
+
+    # ========================================================
+    # PERMISSÕES
+    # ========================================================
+
+    permissions:
+
+      contents: write
+
+
+    # ========================================================
+    # ETAPAS
+    # ========================================================
+
+    steps:
+
+
+      # ======================================================
+      # CHECKOUT
+      # ======================================================
+
+      - name: 📥 Checkout
+
+        uses: actions/checkout@v4
+
+        with:
+
+          fetch-depth: 0
+
+
+
+      # ======================================================
+      # PYTHON
+      # ======================================================
+
+      - name: 🐍 Configurar Python
+
+        uses: actions/setup-python@v5
+
+        with:
+
+          python-version: "3.11"
+
+          cache: pip
+
+
+
+      # ======================================================
+      # DEPENDÊNCIAS
+      # ======================================================
+
+      - name: 📦 Instalar dependências
+
+        run: |
+
+          echo "=============================================="
+          echo "       INSTALANDO DEPENDÊNCIAS"
+          echo "=============================================="
+          echo
+
+          python -m pip install --upgrade pip
+
+          if [ -f requirements.txt ]; then
+
+            echo "📦 Instalando requirements.txt..."
+
+            pip install -r requirements.txt
+
+          else
+
+            echo "ℹ️ requirements.txt não encontrado."
+            echo "Continuando sem instalar dependências."
+
+          fi
+
+          echo
+          echo "✅ Dependências verificadas."
+
+
+
+      # ======================================================
+      # VERIFICAR ORIGEM
+      # ======================================================
+
+      - name: 🔎 Verificar origem
+
+        env:
+
+          SOURCE: ${{ inputs.source }}
+
+        run: |
+
+          echo "=============================================="
+          echo "          VERIFICAÇÃO DA ORIGEM"
+          echo "=============================================="
+          echo
+
+          echo "📁 Origem selecionada:"
+          echo "$SOURCE"
+          echo
+
+
+          # --------------------------------------------------
+          # GARANTIR QUE A ORIGEM ESTÁ DENTRO DE uploads/
+          # --------------------------------------------------
+
+          case "$SOURCE" in
+
+            uploads/*)
+              echo "✅ A origem está dentro de uploads/"
+              ;;
+
+            *)
+              echo "❌ ERRO: a origem precisa estar dentro de uploads/"
+              echo
+              echo "Exemplo:"
+              echo "uploads/projeto.zip"
+              echo
+              exit 1
+              ;;
+
+          esac
+
+
+          # --------------------------------------------------
+          # VERIFICAR EXISTÊNCIA
+          # --------------------------------------------------
+
+          if [ ! -e "$SOURCE" ]; then
+
+            echo
+            echo "❌ ERRO: a origem não existe:"
+            echo "$SOURCE"
+            echo
+
+            echo "📂 Conteúdo disponível em uploads/:"
+            echo
+
+            if [ -d uploads ]; then
+
+              find uploads -maxdepth 3 -print
+
+            else
+
+              echo "❌ A pasta uploads/ não existe."
+
+            fi
+
+            echo
+
+            exit 1
+
+          fi
+
+
+          # --------------------------------------------------
+          # IDENTIFICAR TIPO
+          # --------------------------------------------------
+
+          if [ -d "$SOURCE" ]; then
+
+            echo "📂 Tipo: DIRETÓRIO"
+
+          elif [ -f "$SOURCE" ]; then
+
+            echo "📄 Tipo: ARQUIVO"
+
+          fi
+
+
+          echo
+          echo "✅ Origem encontrada."
+
+
+
+      # ======================================================
+      # VERIFICAR SCRIPT PYTHON
+      # ======================================================
+
+      - name: 🐍 Verificar GitHub Uploader
+
+        run: |
+
+          echo "=============================================="
+          echo "        VERIFICAÇÃO DO SCRIPT PYTHON"
+          echo "=============================================="
+          echo
+
+
+          if [ ! -f "scripts/github_uploader.py" ]; then
+
+            echo "❌ ERRO:"
+            echo
+            echo "O arquivo abaixo não foi encontrado:"
+            echo
+            echo "scripts/github_uploader.py"
+            echo
+
+            echo "📂 Arquivos encontrados em scripts/:"
+
+            if [ -d scripts ]; then
+
+              find scripts -maxdepth 2 -type f -print
+
+            else
+
+              echo "A pasta scripts/ não existe."
+
+            fi
+
+            exit 1
+
+          fi
+
+
+          echo "✅ scripts/github_uploader.py encontrado."
+
+
+
+      # ======================================================
+      # CONFIGURAR GIT
+      # ======================================================
+
+      - name: 🔧 Configurar Git
+
+        run: |
+
+          git config --global user.name \
+            "github-actions[bot]"
+
+          git config --global user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          echo "✅ Git configurado."
+
+
+
+      # ======================================================
+      # VERIFICAR TOKEN
+      # ======================================================
+
+      - name: 🔐 Verificar MY_GITHUB_TOKEN
+
+        env:
+
+          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+
+        run: |
+
+          echo "=============================================="
+          echo "           VERIFICAÇÃO DO TOKEN"
+          echo "=============================================="
+          echo
+
+
+          if [ -z "$MY_GITHUB_TOKEN" ]; then
+
+            echo "❌ ERRO: MY_GITHUB_TOKEN não encontrado."
+            echo
+
+            echo "Configure o Secret em:"
+            echo
+            echo "Settings"
+            echo "→ Secrets and variables"
+            echo "→ Actions"
+            echo "→ Repository secrets"
+            echo "→ New repository secret"
+            echo
+
+            echo "Nome exato:"
+            echo
+            echo "MY_GITHUB_TOKEN"
+            echo
+
+            exit 1
+
+          fi
+
+
+          echo "✅ MY_GITHUB_TOKEN encontrado."
+          echo "🔐 O valor do token não será exibido."
+
+
+
+      # ======================================================
+      # MOSTRAR CONFIGURAÇÃO
+      # ======================================================
+
+      - name: 📋 Mostrar configuração
+
+        env:
+
+          REPOSITORY: ${{ inputs.repository }}
+
+          SOURCE: ${{ inputs.source }}
+
+          CREATE: ${{ inputs.create }}
+
+          PRIVATE: ${{ inputs.private }}
+
+          BRANCH: ${{ inputs.branch }}
+
+          REMOTE_DIR: ${{ inputs.remote_dir }}
+
+          COMMIT: ${{ inputs.commit }}
+
+        run: |
+
+          echo
+          echo "=============================================="
+          echo "       🚀 CONFIGURAÇÃO DO UPLOAD"
+          echo "=============================================="
+          echo
+
+          echo "👤 Usuário:"
+          echo "josieljefferson12"
+          echo
+
+          echo "📦 Repositório:"
+          echo "$REPOSITORY"
+          echo
+
+          echo "📁 Origem:"
+          echo "$SOURCE"
+          echo
+
+          echo "🆕 Criar repositório:"
+          echo "$CREATE"
+          echo
+
+          echo "🔒 Privado:"
+          echo "$PRIVATE"
+          echo
+
+          echo "🌿 Branch:"
+          echo "$BRANCH"
+          echo
+
+          echo "📂 Subpasta:"
+          
+          if [ -n "$REMOTE_DIR" ]; then
+
+            echo "$REMOTE_DIR"
+
+          else
+
+            echo "(raiz do repositório)"
+
+          fi
+
+          echo
+
+          echo "📝 Commit:"
+          echo "$COMMIT"
+          echo
+
+          echo "=============================================="
+
+
+
+      # ======================================================
+      # EXECUTAR UPLOAD
+      # ======================================================
+
+      - name: 🚀 Executar GitHub Uploader
+
+        env:
+
+          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+
+          SOURCE: ${{ inputs.source }}
+
+          REPOSITORY: ${{ inputs.repository }}
+
+          CREATE: ${{ inputs.create }}
+
+          PRIVATE: ${{ inputs.private }}
+
+          BRANCH: ${{ inputs.branch }}
+
+          REMOTE_DIR: ${{ inputs.remote_dir }}
+
+          COMMIT: ${{ inputs.commit }}
+
+        run: |
+
+          echo "=============================================="
+          echo "          🚀 INICIANDO UPLOAD"
+          echo "=============================================="
+          echo
+
+
+          # ==================================================
+          # CONSTRUIR ARGUMENTOS
+          # ==================================================
+
+          CMD_ARGS=()
+
+          CMD_ARGS+=("$SOURCE")
+
+          CMD_ARGS+=("--repo")
+          CMD_ARGS+=("$REPOSITORY")
+
+
+          # --------------------------------------------------
+          # CREATE
+          # --------------------------------------------------
+
+          if [ "$CREATE" = "true" ]; then
+
+            CMD_ARGS+=("--create")
+
+          fi
+
+
+          # --------------------------------------------------
+          # PRIVATE
+          # --------------------------------------------------
+
+          if [ "$PRIVATE" = "true" ]; then
+
+            CMD_ARGS+=("--private")
+
+          fi
+
+
+          # --------------------------------------------------
+          # BRANCH
+          # --------------------------------------------------
+
+          CMD_ARGS+=("--branch")
+          CMD_ARGS+=("$BRANCH")
+
+
+          # --------------------------------------------------
+          # REMOTE DIRECTORY
+          # --------------------------------------------------
+
+          if [ -n "$REMOTE_DIR" ]; then
+
+            CMD_ARGS+=("--remote-dir")
+            CMD_ARGS+=("$REMOTE_DIR")
+
+          fi
+
+
+          # --------------------------------------------------
+          # COMMIT
+          # --------------------------------------------------
+
+          CMD_ARGS+=("--commit")
+          CMD_ARGS+=("$COMMIT")
+
+
+          # ==================================================
+          # EXECUTAR PYTHON
+          # ==================================================
+
+          echo "🐍 Executando:"
+          echo
+
+          printf 'python scripts/github_uploader.py'
+
+          printf ' "%s"' "${CMD_ARGS[@]}"
+
+          echo
+          echo
+
+
+          python scripts/github_uploader.py "${CMD_ARGS[@]}"
+
+
+          echo
+          echo "=============================================="
+          echo "          ✅ UPLOAD CONCLUÍDO"
+          echo "=============================================="
+
+
+
+      # ======================================================
+      # RESULTADO
+      # ======================================================
+
+      - name: ✅ Resultado
+
+        env:
+
+          REPOSITORY: ${{ inputs.repository }}
+
+          BRANCH: ${{ inputs.branch }}
+
+          REMOTE_DIR: ${{ inputs.remote_dir }}
+
+        run: |
+
+          echo
+          echo "=============================================="
+          echo "          🎉 UPLOAD FINALIZADO"
+          echo "=============================================="
+          echo
+
+          echo "📦 Repositório:"
+          echo "https://github.com/josieljefferson12/$REPOSITORY"
+          echo
+
+          echo "🌿 Branch:"
+          echo "$BRANCH"
+          echo
+
+          if [ -n "$REMOTE_DIR" ]; then
+
+            echo "📂 Subpasta:"
+            echo "$REMOTE_DIR"
+
+          else
+
+            echo "📂 Localização:"
+            echo "Raiz do repositório"
+
+          fi
+
+          echo
+
+          echo "=============================================="
+          echo "             🚀 CONCLUÍDO"
+          echo "=============================================="
