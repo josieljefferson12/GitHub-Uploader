@@ -1,1 +1,135 @@
+name: 🚀 GitHub Uploader
 
+on:
+
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "uploads/**"
+      - "scripts/github_uploader.py"
+      - "requirements.txt"
+      - ".github/workflows/upload.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-uploader
+  cancel-in-progress: false
+
+jobs:
+
+  upload:
+
+    name: 📦 Upload de arquivos
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # =====================================================
+      # CHECKOUT
+      # =====================================================
+
+      - name: 📥 Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # =====================================================
+      # PYTHON
+      # =====================================================
+
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # =====================================================
+      # DEPENDÊNCIAS
+      # =====================================================
+
+      - name: 📦 Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # =====================================================
+      # GIT
+      # =====================================================
+
+      - name: 🔧 Configurar Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # =====================================================
+      # TOKEN
+      # =====================================================
+
+      - name: 🔐 Validar MY_GITHUB_TOKEN
+        env:
+          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+        run: |
+
+          if [ -z "$MY_GITHUB_TOKEN" ]; then
+
+            echo "❌ ERRO: MY_GITHUB_TOKEN não foi encontrado."
+            echo
+            echo "Verifique:"
+            echo "1. Settings"
+            echo "2. Secrets and variables"
+            echo "3. Actions"
+            echo "4. Repository secrets"
+            echo "5. O Secret deve se chamar exatamente:"
+            echo
+            echo "   MY_GITHUB_TOKEN"
+            echo
+
+            exit 1
+
+          fi
+
+          echo "✅ MY_GITHUB_TOKEN encontrado."
+
+      # =====================================================
+      # EXECUTAR UPLOADER
+      # =====================================================
+
+      - name: 🚀 Executar GitHub Uploader
+        env:
+          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+        run: |
+
+          python scripts/github_uploader.py \
+            uploads \
+            --branch main \
+            --commit "📦 Upload automático de arquivos"
+
+      # =====================================================
+      # STATUS FINAL
+      # =====================================================
+
+      - name: ✅ Finalizar
+        run: |
+
+          echo
+          echo "=============================================="
+          echo "       GITHUB UPLOADER FINALIZADO"
+          echo "=============================================="
+          echo
+          echo "Usuário:"
+          echo "josieljefferson12"
+          echo
+          echo "Repositório:"
+          echo "GitHub-Uploader"
+          echo
+          echo "Branch:"
+          echo "main"
+          echo
+          echo "Arquivos:"
+          echo "uploads/"
+          echo
+          echo "=============================================="
